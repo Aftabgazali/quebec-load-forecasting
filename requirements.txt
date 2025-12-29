@@ -1,3 +1,7 @@
+streamlit
 pandas
 pyarrow
 altair
+numpy
+PyYAML
+requests

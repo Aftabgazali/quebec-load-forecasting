@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 
-from lib.io import list_runs, pick_forecast_csv, load_csv, detect_columns
+from lib.io import list_runs, load_csv,pick_forecast_csv, detect_columns
 
 st.title("Monitoring / Anomalies")
 

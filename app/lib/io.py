@@ -15,6 +15,9 @@ class RunPaths:
     data_run_dir: Optional[Path]
 
 
+def load_csv(path: Path) -> pd.DataFrame:
+    return pd.read_csv(path)
+
 def repo_root() -> Path:
     return Path(__file__).resolve().parents[2]
 
@@ -49,6 +52,16 @@ def list_runs() -> List[RunPaths]:
         runs.append(RunPaths(run_id=rid, reports_run_dir=rdir, data_run_dir=ddir))
     return runs
 
+def pick_forecast_csv(csv_files: List[Path]) -> Optional[Path]:
+    if not csv_files:
+        return None
+
+    # Prefer filenames that look like forecasts
+    preferred = []
+    for p in csv_files:
+        name = p.name.lower()
+        if "forecast" in name or "pred" in name or "yhat" in name:
+            preferred.append(p)
 
 def read_json(path: Path) -> dict:
     try:
