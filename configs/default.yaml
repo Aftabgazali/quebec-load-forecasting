@@ -1,0 +1,49 @@
+# Minimal config (expand later only if needed)
+project:
+  timezone: "America/Toronto"
+  issue_time_local: "18:00"
+
+hq:
+  dataset_id: "historique-demande-electricite-quebec"
+  domain: "donnees.hydroquebec.com"
+  end_to_start_shift_hours: 1
+
+paths:
+  raw_dir: "data/raw"
+  processed_dir: "data/processed"
+  forecasts_runs_dir: "data/forecasts/runs"
+  reports_dir: "reports"
+  models_dir: "models"
+  logs_dir: "logs"
+
+baselines:
+  weekly_average_k: 4
+  origin_hour: 23
+  horizon_hours: 24
+  eval_days: 90
+
+backtest:
+  step_hours: 24
+  window: "expanding"
+  min_train_days: 180
+  eval_days: 90
+  horizon_hours: 24
+  origin_hour: 23
+
+weather:
+  variable: "temperature_2m"
+  lat: 45.5017
+  lon: -73.5673
+  global_timezone: "UTC"
+
+model:
+  lgbm_params:
+    n_estimators: 300
+    learning_rate: 0.05
+    num_leaves: 128
+    min_child_samples: 50
+    subsample: 0.9
+    colsample_bytree: 0.9
+    random_state: 42
+    n_jobs: -1
+    verbose: -1
