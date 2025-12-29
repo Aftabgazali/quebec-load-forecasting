@@ -1,4 +1,9 @@
 data/*
+!data/processed/modeling_table.parquet
+!data/forecasts/
+!data/forecasts/runs/
+!data/forecasts/runs/**/yhat.parquet
+!data/forecasts/runs/**/inputs.json
 project_documents/*
 SPEC.md
 models/
