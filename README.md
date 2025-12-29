@@ -1,14 +1,17 @@
-# Québec Day-Ahead Electricity Demand Forecasting (V1.0)
+# Québec Day-Ahead Electricity Demand Forecasting (V1.1)
 
-Forecast **Hydro-Québec system load** for the **next 24 hours** (day-ahead) using demand history + calendar signals + temperature features (non-leaky proxy).
+Day-ahead (next 24h) forecasting of **Hydro-Québec system load** using demand history, calendar signals, and temperature features (**non-leaky forecast proxy**).
 
-This repo is intentionally “simple pipeline, serious backtesting”:
-- Strong baselines
-- Leakage-safe feature building
-- Walk-forward evaluation
-- **Direct multi-step** forecasting (24 specialist models)
+Built as a **simple pipeline with serious evaluation**:
+- Strong baselines (weekly naive, weekly average)
+- Leakage-safe feature building (walk-forward setup)
+- **Direct multi-step** forecasting: 24 specialist models (h=1..24)
+- Backtest metrics by horizon + operational metrics (WAPE, bias, peak error)
 
----
+## Dashboard (Streamlit)
+| Home | Forecast | Backtest |
+|---|---|---|
+| ![Home](./images/home.png) | ![Forecast](./images/forecast.png) | ![Backtest](./images/backtest.png) |
 
 ## Data
 
@@ -71,22 +74,41 @@ Metrics:
 
 ---
 
-## Results (V1.0)
+## Results (V1.1)
 
-All numbers below use the **same origin (23:00)** and the **same 90‑day evaluation window**, so they are apples-to-apples.
+All results use the same forecasting contract: **issue at 23:00 (America/Toronto)** and predict **the full next day (00:00 → 23:00)**.
+
+**Metric notes**
+- **MAE / RMSE / Bias / Peak error** are in **MW**
+- **WAPE** is shown as a **percentage**
+- **Bias = mean(y_pred − y_true)** → bias < 0 means under-forecasting on average
 
 ### Baselines (no ML)
-- Weekly naive (lag 168): **MAE = 2065.00 MW**, **RMSE = 2237.56 MW**
-- Weekly average (k=4): **MAE = 2363.88 MW**, **RMSE = 2476.57 MW**
+
+These are strong seasonal benchmarks. (Minor differences in `n_points` are due to a few missing hourly targets.)
+
+- **Weekly naive (lag 168)**  
+  MAE **2064.35 MW**, RMSE **2723.13 MW**, WAPE **8.99%**, Bias **−547.87 MW**, Peak error **−563.11 MW**, Peak timing error **−0.01 h**
+
+- **Weekly average (k=4)**  
+  MAE **2363.54 MW**, RMSE **3068.08 MW**, WAPE **10.29%**, Bias **−1662.83 MW**, Peak error **−1926.56 MW**, Peak timing error **+1.40 h**
+
+**Interpretation:** weekly-average smooths too much → it underestimates peaks and shifts peak timing. Weekly-naive is the stronger baseline here.
 
 ### LightGBM (Direct 24 specialists)
-- Overall: **MAE = 706.868 MW**, **RMSE = 1023.794 MW** (90 folds)
+
+- **Overall (90 folds, 2160 points):**  
+  MAE **706.868 MW**, RMSE **1023.794 MW**, WAPE **3.09%**, Bias **−21.671 MW**  
+  Peak error (mean) **−94.674 MW**, Peak timing error (mean) **+1.0 h**
+
+- **Skill vs strongest baseline (weekly naive):**  
+  MAE improves by **~65.8%** (WAPE improves by **~65.6%**).
 
 Notes:
-- Error increases with horizon; worst horizons are typically **18–24**.
+- Error increases with horizon (farther into tomorrow is harder); worst horizons are typically **18–24**.
 - Tuning note: `num_leaves=128` improved MAE to ~**706 MW**.
 
-See `RESULTS.md` for the full write-up and the horizon table.
+See `RESULTS.md` for the full horizon table + diagnostics.
 
 ---
 
@@ -128,17 +150,22 @@ Artifacts:
 
 ## Roadmap
 
-### V1.1 (small, portfolio-friendly)
-- Add 1–2 plots to `reports/backtest/`:
-  - MAE by horizon
-  - MAE by hour-of-day
-- Add a clean “baseline vs model” comparison table in the backtest report
+### V1.1 (done)
+- Streamlit dashboard (Forecast / Backtest / Monitoring scaffolding)
+- Added industry-standard metrics: **WAPE, Bias, Peak error, Peak timing**
+- Forecast page: plot **prediction vs actual** for the 24-hour next-day window
+- Backtest page: horizon plot + baseline comparison callout
 
-### V1.2 (live daily loop)
-- Daily ingestion from HQ 15‑minute dataset (aggregate to hourly)
-- Daily evaluation of prior forecasts once actuals arrive
-- Weekly retraining (or retrain when performance degrades)
-- Automatically archive daily runs in `data/forecasts/runs/<run_id>/` and generate a report
+### V1.2 (next: make it “live”)
+- Daily run automation: generate next-day forecast at fixed issue time
+- Auto-evaluation: as actuals arrive, score forecasts and update dashboard artifacts
+- Retraining policy: weekly retrain + optional retrain trigger on large error spikes
+- Hosted dashboard (Streamlit Community Cloud)
+
+### V1.3 (probabilistic + monitoring)
+- Quantile forecasts (P10/P50/P90)
+- Monitoring tab: coverage, interval width, anomaly flagging when actuals fall outside the band
+
 
 ---
 

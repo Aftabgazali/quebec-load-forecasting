@@ -40,28 +40,20 @@ Lower is better for both MAE and RMSE.
 
 **Baselines (same origin and evaluation window)**
 
-* Weekly naive (lag 168): **MAE = 2065.00 MW**, **RMSE = 2237.56 MW** (n_points = 2134).
-* Weekly average (k=4): **MAE = 2363.88 MW**, **RMSE = 2476.57 MW** (n_points = 2135).
+* Weekly naive (lag 168): **MAE = 2064.35 MW**, **RMSE = 2723.13 MW**, **WAPE = 8.99%**, **Bias = −547.87 MW** (n_points = 2134).
+* Weekly average (k=4): **MAE = 2363.54 MW**, **RMSE = 3068.08 MW**, **WAPE = 10.29%**, **Bias = −1662.83 MW** (n_points = 2135).
 
-**Model performance (LightGBM, Direct 24)**
+**Model performance (LightGBM, Direct 24 specialists)**
 
-* Overall: **MAE = 706.868 MW**, **RMSE = 1023.794 MW** (90 folds).
-* The model **substantially outperforms** the strongest baseline under the same evaluation protocol.
+* Overall: **MAE = 706.868 MW**, **RMSE = 1023.794 MW**, **WAPE = 3.09%**, **Bias = −21.671 MW** (90 folds, 2160 scored points).
+* Under the same protocol, the model improves over the strongest baseline (weekly naive) by **~65.8% MAE** (and **~65.6% WAPE**).
 
 **Horizon behavior**
 
-* As expected, error increases with horizon; the worst performance occurs at **horizons 18–24** (farthest ahead and typically overlapping more volatile late-day hours).
-* Example horizon metrics (n=90 each):
-
-  * h=18: MAE 999.52, RMSE 1282.49
-  * h=19: MAE 1022.12, RMSE 1382.36
-  * h=20: MAE 1103.44, RMSE 1460.56
-  * h=21: MAE 1107.86, RMSE 1490.13
-  * h=22: MAE 1124.81, RMSE 1501.06
-  * h=23: MAE 1127.05, RMSE 1511.86
-  * h=24: MAE 1139.13, RMSE 1509.94
+* Error increases with horizon (farther into tomorrow is harder). In this backtest, **MAE rises from ~183 MW at h=1 to ~1125 MW at h=24**, with the hardest horizons typically **18–24**.
 
 **Interpretation**
 
-* Baselines confirm the task is non-trivial (MAE ~2.1–2.4 GW).
-* Adding demand lags/rolling means, calendar signals, and weather features allows LightGBM specialists to capture daily/weekly structure and weather sensitivity, yielding a large reduction in error (MAE ~0.73 GW).
+* The baselines show this is a non-trivial forecasting task (MAE ≈ **2.1–2.4 GW**).
+* Using demand lags/rolling stats, calendar signals, and weather features, the LightGBM horizon specialists capture daily/weekly structure and weather sensitivity, reducing error to **~0.71 GW MAE** with near-zero overall bias.
+* Peak diagnostics show the model is generally close on daily peak magnitude (mean peak error **−94.7 MW**) and typically within **~1 hour** on peak timing.
