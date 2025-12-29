@@ -1,0 +1,23 @@
+{
+  "run_id": "2023-12-30T2300_America-Toronto",
+  "issue_time": "2023-12-30 23:00:00-05:00",
+  "origin_hour": 23,
+  "model_metadata": "models\\metadata_2023-12-30T2300.json",
+  "cutoff_origin_ts": "2023-12-30 23:00:00-05:00",
+  "feature_cols": [
+    "lag_1",
+    "lag_24",
+    "lag_168",
+    "roll_mean_24h",
+    "roll_mean_168h",
+    "temp_obs_c",
+    "temp_lag_24",
+    "temp_lag_168",
+    "target_hour",
+    "target_dow",
+    "target_is_weekend",
+    "target_month",
+    "target_temp_fcst_proxy_7d_same_hour"
+  ],
+  "generated_at_local": "2025-12-28 18:45:30.107769-05:00"
+}
