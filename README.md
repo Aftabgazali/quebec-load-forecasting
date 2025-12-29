@@ -68,9 +68,16 @@ This provides a realistic “known-at-forecast-time” temperature input without
 - Target window per fold: **next 24 hours** (D+1 00:00 → 23:00)
 - Evaluation span: **90 daily folds** (configurable)
 
-Metrics:
+**Metrics:**
 - **MAE (MW)**: average absolute error (typical miss)
 - **RMSE (MW)**: penalizes big misses more
+- **WAPE (%)**: total absolute error divided by total actual load (scale-free)
+- **Bias (MW)**: mean(pred − actual)  
+  bias < 0 → under-forecasting on average; bias > 0 → over-forecasting
+- **Peak error (MW)**: predicted daily peak − actual daily peak  
+  negative → peak underestimated; positive → peak overestimated
+- **Peak timing error (hours)**: predicted peak hour − actual peak hour  
+  0 → correct peak hour; positive → predicted peak late; negative → early
 
 ---
 
