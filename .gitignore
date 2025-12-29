@@ -1,7 +1,5 @@
 data/*
 project_documents/*
 SPEC.md
-reports/backtest/*.csv
-reports/runs
 models/
 __pycache__/
