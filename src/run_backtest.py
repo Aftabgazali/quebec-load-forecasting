@@ -32,6 +32,7 @@ IN_PARQUET = Path("data/processed/modeling_table.parquet")
 OUT_DIR = Path("reports/backtest")
 OUT_MD = OUT_DIR / "backtest_summary.md"
 OUT_CSV = OUT_DIR / "metrics_by_horizon.csv"
+OUT_PEAK_CSV = OUT_DIR / "daily_peak_diagnostics.csv"
 
 # Keep this small first (smoke test). Change to 90 after it runs once.
 EVAL_DAYS = cfg['backtest']['eval_days']
@@ -159,6 +160,7 @@ def main() -> None:
                     "y_pred": y_pred,
                     "abs_err": abs(y_true - y_pred),
                     "sq_err": (y_true - y_pred) ** 2,
+                    "err": (y_pred - y_true),
                 }
             )
 
@@ -168,24 +170,69 @@ def main() -> None:
     pred_df = pd.DataFrame(preds_records)
     if pred_df.empty:
         raise SystemExit("No predictions were produced. Something went wrong with data filtering.")
+    # Daily peak metrics (ops-focused; computed per origin day)
+    daily = pred_df.copy()
+    daily["date"] = pd.to_datetime(daily["target_ts"]).dt.date
 
-    # Overall metrics
-    overall_mae = mae(pred_df["y_true"].to_numpy(), pred_df["y_pred"].to_numpy())
-    overall_rmse = rmse(pred_df["y_true"].to_numpy(), pred_df["y_pred"].to_numpy())
+    daily_peak = (
+        daily.groupby("date")
+        .apply(
+            lambda g: pd.Series(
+                {
+                    "peak_error_mw": float(g["y_pred"].max() - g["y_true"].max()),
+                    "peak_timing_error_h": float(
+                        (
+                            g.loc[g["y_pred"].idxmax(), "target_ts"]
+                            - g.loc[g["y_true"].idxmax(), "target_ts"]
+                        )
+                        / pd.Timedelta(hours=1)
+                    ),
+                }
+            )
+        )
+        .reset_index()
+    )
 
-    # By-horizon metrics
+    peak_error_mean = float(daily_peak["peak_error_mw"].mean()) if not daily_peak.empty else np.nan
+    peak_timing_mean = float(daily_peak["peak_timing_error_h"].mean()) if not daily_peak.empty else np.nan
+
+    # Overall metrics (computed from sums: correct + stable)
+    abs_err_sum = float(pred_df["abs_err"].sum())
+    sq_err_sum = float(pred_df["sq_err"].sum())
+    err_sum = float(pred_df["err"].sum())
+    y_sum = float(pred_df["y_true"].sum())
+    n_points = int(len(pred_df))
+
+    overall_mae = abs_err_sum / n_points
+    overall_rmse = float(np.sqrt(sq_err_sum / n_points))
+    overall_wape = (abs_err_sum / y_sum) if y_sum != 0 else np.nan
+    overall_bias = err_sum / n_points
+
+    # By-horizon metrics (from sums, not mean-of-means)
     by_h = (
         pred_df.groupby("horizon")
         .agg(
             n=("y_true", "size"),
-            mae=("abs_err", "mean"),
-            rmse=("sq_err", lambda s: float(np.sqrt(np.mean(s)))),
+            abs_err_sum=("abs_err", "sum"),
+            sq_err_sum=("sq_err", "sum"),
+            err_sum=("err", "sum"),
+            y_sum=("y_true", "sum"),
         )
         .reset_index()
         .sort_values("horizon")
     )
-    by_h.to_csv(OUT_CSV, index=False)
 
+    by_h["mae"] = by_h["abs_err_sum"] / by_h["n"]
+    by_h["rmse"] = np.sqrt(by_h["sq_err_sum"] / by_h["n"])
+    by_h["wape"] = by_h["abs_err_sum"] / by_h["y_sum"]
+    by_h["bias"] = by_h["err_sum"] / by_h["n"]
+
+    # Keep the table clean
+    by_h = by_h[["horizon", "n", "mae", "rmse", "wape", "bias"]]
+    by_h.to_csv(OUT_CSV, index=False)
+    
+    # Save the daily peak into csv so the pages could read them
+    daily_peak.to_csv(OUT_PEAK_CSV, index=False)
     # Write markdown summary
     lines = []
     lines.append("# Model backtest summary (LightGBM, Direct 24 specialists)")
@@ -195,8 +242,15 @@ def main() -> None:
     lines.append(f"- Scored points: {len(pred_df)}")
     lines.append("")
     lines.append("## Overall")
-    lines.append(f"- MAE:  {overall_mae:.3f} MW")
-    lines.append(f"- RMSE: {overall_rmse:.3f} MW")
+    lines.append(f"- MAE:   {overall_mae:.3f} MW")
+    lines.append(f"- RMSE:  {overall_rmse:.3f} MW")
+    lines.append(f"- WAPE:  {overall_wape:.5f} (fraction of total load)")
+    lines.append(f"- Bias:  {overall_bias:.3f} MW (mean y_pred - y_true)")
+    lines.append(f"- Peak error (mean): {peak_error_mean:.3f} MW")
+    lines.append(f"- Peak timing error (mean): {peak_timing_mean:.3f} hours")
+    lines.append("")
+    lines.append("## Daily peak diagnostics (first 10 days)")
+    lines.append(daily_peak.head(10).to_markdown(index=False))
     lines.append("")
     lines.append("## By horizon")
     lines.append(by_h.to_markdown(index=False))
@@ -212,6 +266,7 @@ def main() -> None:
     print(f"  Overall RMSE: {overall_rmse:.3f} MW")
     print(f"  Output: {OUT_MD}")
     print(f"  Output: {OUT_CSV}")
+    print(f"  Output: {OUT_PEAK_CSV}")
 
 
 if __name__ == "__main__":

@@ -86,17 +86,57 @@ def main() -> None:
             mask = ~np.isnan(y_true) & ~np.isnan(yhat)
             if mask.sum() == 0:
                 return
+
+            yt = y_true[mask]
+            yp = yhat[mask]
+
+            abs_err = np.abs(yt - yp)
+            err = (yp - yt)
+            sq_err = (yt - yp) ** 2
+
+            # WAPE (safe): sum(|e|)/sum(y)
+            y_sum = float(np.sum(yt))
+            wape = float(abs_err.sum() / y_sum) if y_sum != 0 else np.nan
+
+            # Bias: mean(yp - yt)
+            bias = float(err.mean())
+
+            # Peak error + peak timing error (hours)
+            idx = target_index[mask]
+            s_true = pd.Series(yt, index=idx)
+            s_pred = pd.Series(yp, index=idx)
+
+            true_peak_ts = s_true.idxmax()
+            pred_peak_ts = s_pred.idxmax()
+            peak_error_mw = float(s_pred.max() - s_true.max())
+            peak_timing_error_h = float((pred_peak_ts - true_peak_ts) / pd.Timedelta(hours=1))
             results.append(
                 {
                     "date": str(forecast_day),
                     "baseline": name,
                     "n": int(mask.sum()),
-                    "mae": mae(y_true[mask], yhat[mask]),
-                    "rmse": rmse(y_true[mask], yhat[mask]),
-                    "average_demand": df['y'].mean()
+
+                    # keep these (handy)
+                    "mae": mae(yt, yp),
+                    "rmse": rmse(yt, yp),
+
+                    # NEW metrics (day-level)
+                    "wape": wape,
+                    "bias": bias,
+                    "peak_error_mw": peak_error_mw,
+                    "peak_timing_error_h": peak_timing_error_h,
+
+                    # store sums so aggregate metrics are correct (not “mean of means”)
+                    "abs_err_sum": float(abs_err.sum()),
+                    "sq_err_sum": float(sq_err.sum()),
+                    "err_sum": float(err.sum()),
+                    "y_sum": y_sum,
+
+                    # context (fix: use that day, not whole dataset)
+                    "average_demand": float(np.mean(yt)),
                 }
             )
-        score_one("weekly_naive_lag168", yhat_naive)
+        score_one("weekly_naive_lag168", yhat_naive) 
         score_one(f"weekly_avg_k{K_WEEKS}", yhat_avg)
 
     res = pd.DataFrame(results)
@@ -105,11 +145,41 @@ def main() -> None:
 
     # Aggregate across all folds
     summary = (
-        res.groupby("baseline")
-        .agg(days=("date", "nunique"), n_points=("n", "sum"), mae=("mae", "mean"), rmse=("rmse", "mean"),  average_demand=("average_demand","mean"))
-        .reset_index()
-        .sort_values("mae")
+    res.groupby("baseline")
+    .agg(
+        days=("date", "nunique"),
+        n_points=("n", "sum"),
+
+        # sums for correct overall metrics
+        abs_err_sum=("abs_err_sum", "sum"),
+        sq_err_sum=("sq_err_sum", "sum"),
+        err_sum=("err_sum", "sum"),
+        y_sum=("y_sum", "sum"),
+
+        # average across days for ops-style metrics
+        peak_error_mw=("peak_error_mw", "mean"),
+        peak_timing_error_h=("peak_timing_error_h", "mean"),
+
+        average_demand=("average_demand", "mean"),
     )
+    .reset_index()
+)
+
+    # Derive overall point metrics from sums (more correct than averaging daily MAE/RMSE)
+    summary["mae"] = summary["abs_err_sum"] / summary["n_points"]
+    summary["rmse"] = np.sqrt(summary["sq_err_sum"] / summary["n_points"])
+    summary["wape"] = summary["abs_err_sum"] / summary["y_sum"]
+    summary["bias"] = summary["err_sum"] / summary["n_points"]
+
+    # Nice presentation order
+    summary = summary[
+        [
+            "baseline", "days", "n_points",
+            "mae", "rmse", "wape", "bias",
+            "peak_error_mw", "peak_timing_error_h",
+            "average_demand",
+        ]
+    ].sort_values("mae")
 
     summary.to_csv(OUT_CSV, index=False)
 
